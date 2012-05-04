@@ -3,24 +3,37 @@
 
 Matrix::Matrix(int rows, int columns)
 {
-    if(rows == 0 || columns == 0) {
-        std::cout << "Both Rows and Columns of a matrix must be > 0.";
-        return;
+    if(rows > 0 && columns > 0) {
+        m_values = new real*[rows];
+        for(int i = 0; i < rows; ++i)
+            m_values[i] = new real[columns];
     }
-
-    m_matrix = new real*[rows];
-    for(int i = 0; i < rows; ++i)
-        m_matrix[i] = new real[columns];
 
     m_rows = rows;
     m_columns = columns;
 }
 
+Matrix::Matrix(const Matrix& matrix)
+{
+    m_rows = matrix.getRows();
+    m_columns = matrix.getColumns();
+
+    if(m_rows > 0 && m_columns > 0) {
+        m_values = new real*[m_rows];
+        for(int i = 0; i < m_rows; ++i)
+            m_values[i] = new real[m_columns];
+
+        for(int i = 0; i < m_rows; ++i)
+            for(int j = 0; j < m_columns; ++j)
+                setValue(i, j, matrix.getValue(i, j));
+    }
+}
+
 Matrix::~Matrix()
 {
     for(int i = 0; i < m_rows; ++i)
-        delete []m_matrix[i];
-    delete []m_matrix;
+        delete []m_values[i];
+    delete []m_values;
 }
 
 bool Matrix::isRowValid(int row)
@@ -41,12 +54,21 @@ bool Matrix::isColumnValid(int column)
     return true;
 }
 
-Matrix *Matrix::createCopy()
+Matrix Matrix::createCopy()
 {
-    Matrix *matrix = new Matrix(m_rows, m_columns);
+    Matrix matrix(m_rows, m_columns);
     for(int i = 0; i < m_rows; ++i)
         for(int j = 0; j < m_columns; ++j)
-            matrix->setValue(i, j, m_matrix[i][j]);
+            matrix.setValue(i, j, m_values[i][j]);
+    return matrix;
+}
+
+Matrix Matrix::createIdentity(int size)
+{
+    Matrix matrix(size, size);
+    for(int i = 0; i < size; ++i)
+        for(int j = 0; j < size; ++j)
+            matrix.setValue(i, j, i==j ? 1 : 0);
     return matrix;
 }
 
@@ -54,7 +76,7 @@ void Matrix::fill(real value)
 {
     for(int i = 0; i < m_rows; ++i)
         for(int j = 0; j < m_columns; ++j)
-            m_matrix[i][j] = value;
+            m_values[i][j] = value;
 }
 
 void Matrix::rowMultiply(int row, real scalar)
@@ -66,7 +88,7 @@ void Matrix::rowMultiply(int row, real scalar)
         return;
     }
     for(int j = 0; j < m_columns; ++j)
-        m_matrix[row][j] *= scalar;
+        m_values[row][j] *= scalar;
 }
 
 void Matrix::rowSwap(int row1, int row2)
@@ -80,9 +102,9 @@ void Matrix::rowSwap(int row1, int row2)
 
     real temp;
     for(int j = 0; j < m_columns; ++j) {
-        temp = m_matrix[row1][j];
-        m_matrix[row1][j] = m_matrix[row2][j];
-        m_matrix[row2][j] = temp;
+        temp = m_values[row1][j];
+        m_values[row1][j] = m_values[row2][j];
+        m_values[row2][j] = temp;
     }
 }
 
@@ -96,7 +118,7 @@ void Matrix::rowAdd(int row1, int row2, real scalar)
         return;
 
     for(int j = 0; j < m_columns; ++j)
-        m_matrix[row1][j] += m_matrix[row2][j] * scalar;
+        m_values[row1][j] += m_values[row2][j] * scalar;
 }
 
 void Matrix::upperTriangularMatrix()
@@ -104,7 +126,7 @@ void Matrix::upperTriangularMatrix()
     for(int j = 0; j < m_columns-1; ++j) {
         int i = j;
         for(; i < m_rows; ++i) {
-            if(m_matrix[i][j] != 0) {
+            if(m_values[i][j] != 0) {
                 if(i != j)
                     rowSwap(j, i);
                 break;
@@ -114,8 +136,11 @@ void Matrix::upperTriangularMatrix()
         if(i == m_rows) // this column is filled with 0
             continue;
 
-        for(i = j+1; i < m_rows; ++i)
-            rowAdd(i, j, -(m_matrix[i][j] / m_matrix[j][j]));
+        for(i = j+1; i < m_rows; ++i) {
+            real coeficient = -(m_values[i][j] / m_values[j][j]);
+            if(coeficient != 0)
+                rowAdd(i, j, coeficient);
+        }
     }
 }
 
@@ -126,18 +151,112 @@ real Matrix::getDeterminant()
         return 0;
     }
 
-    Matrix *matrix = createCopy();
-    matrix->upperTriangularMatrix();
+    Matrix matrix = createCopy();
+    matrix.upperTriangularMatrix();
 
     int determinant = 1;
     for(int i = 0; i < m_rows; ++i)
-        determinant *= matrix->getValue(i, i);
+        determinant *= matrix.getValue(i, i);
 
-    delete matrix;
     return determinant;
 }
 
-std::ostream& operator<<(std::ostream& out, Matrix& matrix)
+Matrix Matrix::getInverse()
+{
+    if(m_rows != m_columns) {
+        std::cout << "Only square matrixes can be inversed" << std::endl;
+        return Matrix();
+    }
+
+    Matrix matrix = createCopy();
+    Matrix inverse = Matrix::createIdentity(m_rows);
+
+    for(int j = 0; j < matrix.getColumns()-1; ++j) {
+        int i = j;
+        for(; i < matrix.getRows(); ++i) {
+            if(matrix.getValue(i, j) != 0) {
+                if(i != j) {
+                    matrix.rowSwap(j, i);
+                    inverse.rowSwap(j, i);
+                }
+                break;
+            }
+        }
+
+        if(i == matrix.getRows()) // this column is filled with 0
+            continue;
+
+        if(matrix.getValue(j, j) == 0) {
+            std::cout << "This matrix is not invertible." << std::endl;
+            return Matrix();
+        }
+        //real coeficient = 1.0 / matrix.getValue(j, j);
+        //matrix.rowMultiply(j, coeficient);
+        //inverse.rowMultiply(j, coeficient);
+
+        for(i = j+1; i < matrix.getRows(); ++i) {
+            real coeficient = -(matrix.getValue(i, j) / matrix.getValue(j, j));
+            if(coeficient != 0) {
+                matrix.rowAdd(i, j, coeficient);
+                inverse.rowAdd(i, j, coeficient);
+            }
+        }
+    }
+
+    for(int j = matrix.getColumns()-1; j >= 0; --j) {
+        int i = j;
+        for(; i >= 0; --i) {
+            if(matrix.getValue(i, j) != 0) {
+                if(i != j) {
+                    matrix.rowSwap(j, i);
+                    inverse.rowSwap(j, i);
+                }
+                break;
+            }
+        }
+
+        if(i < 0) // this column is filled with 0
+            continue;
+
+        if(matrix.getValue(j, j) == 0) {
+            std::cout << "This matrix is not invertible." << std::endl;
+            return Matrix();
+        }
+        real coeficient = 1.0 / matrix.getValue(j, j);
+        matrix.rowMultiply(j, coeficient);
+        inverse.rowMultiply(j, coeficient);
+
+        for(i = j-1; i >= 0; --i) {
+            real coeficient = -(matrix.getValue(i, j) / matrix.getValue(j, j));
+            if(coeficient != 0) {
+                matrix.rowAdd(i, j, coeficient);
+                inverse.rowAdd(i, j, coeficient);
+            }
+        }
+    }
+    return inverse;
+}
+
+Matrix Matrix::multiply(const Matrix& matrix)
+{
+    if(m_columns != matrix.getRows()) {
+        std::cout << "These matrixes can't be multiplied. Columns != Rows" << std::endl;
+        return Matrix();
+    }
+
+    Matrix result(m_rows, matrix.getColumns());
+    for(int ri = 0; ri < m_rows; ++ri) {
+        for(int rj = 0; rj < matrix.getColumns(); ++rj) {
+            int coeficient = 0;
+            for(int j = 0; j < m_columns; ++j) // or matrix->getRows() also valid.
+                coeficient += getValue(ri, j) * matrix.getValue(j, rj);
+            result.setValue(ri, rj, coeficient);
+        }
+    }
+    return result;
+}
+
+std::ostream& operator<<(std::ostream& out, const Matrix& matrix)
 {
     for(int i = 0; i < matrix.getRows(); ++i) {
         for(int j = 0; j < matrix.getColumns(); ++j) {
