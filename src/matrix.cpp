@@ -3,37 +3,9 @@
 
 Matrix::Matrix(int rows, int columns)
 {
-    if(rows > 0 && columns > 0) {
-        m_values = new real*[rows];
-        for(int i = 0; i < rows; ++i)
-            m_values[i] = new real[columns];
-    }
-
     m_rows = rows;
     m_columns = columns;
-}
-
-Matrix::Matrix(const Matrix& matrix)
-{
-    m_rows = matrix.getRows();
-    m_columns = matrix.getColumns();
-
-    if(m_rows > 0 && m_columns > 0) {
-        m_values = new real*[m_rows];
-        for(int i = 0; i < m_rows; ++i)
-            m_values[i] = new real[m_columns];
-
-        for(int i = 0; i < m_rows; ++i)
-            for(int j = 0; j < m_columns; ++j)
-                setValue(i, j, matrix.getValue(i, j));
-    }
-}
-
-Matrix::~Matrix()
-{
-    for(int i = 0; i < m_rows; ++i)
-        delete []m_values[i];
-    delete []m_values;
+    m_values.resize(rows * columns);
 }
 
 bool Matrix::isRowValid(int row)
@@ -54,15 +26,6 @@ bool Matrix::isColumnValid(int column)
     return true;
 }
 
-Matrix Matrix::createCopy()
-{
-    Matrix matrix(m_rows, m_columns);
-    for(int i = 0; i < m_rows; ++i)
-        for(int j = 0; j < m_columns; ++j)
-            matrix.setValue(i, j, m_values[i][j]);
-    return matrix;
-}
-
 Matrix Matrix::createIdentity(int size)
 {
     Matrix matrix(size, size);
@@ -76,7 +39,7 @@ void Matrix::fill(real value)
 {
     for(int i = 0; i < m_rows; ++i)
         for(int j = 0; j < m_columns; ++j)
-            m_values[i][j] = value;
+            setValue(i, j, value);
 }
 
 void Matrix::rowMultiply(int row, real scalar)
@@ -88,7 +51,7 @@ void Matrix::rowMultiply(int row, real scalar)
         return;
     }
     for(int j = 0; j < m_columns; ++j)
-        m_values[row][j] *= scalar;
+        setValue(row, j, getValue(row, j) * scalar);
 }
 
 void Matrix::rowSwap(int row1, int row2)
@@ -102,9 +65,9 @@ void Matrix::rowSwap(int row1, int row2)
 
     real temp;
     for(int j = 0; j < m_columns; ++j) {
-        temp = m_values[row1][j];
-        m_values[row1][j] = m_values[row2][j];
-        m_values[row2][j] = temp;
+        temp = getValue(row1, j);
+        setValue(row1, j, getValue(row2, j));
+        setValue(row2, j, temp);
     }
 }
 
@@ -118,7 +81,7 @@ void Matrix::rowAdd(int row1, int row2, real scalar)
         return;
 
     for(int j = 0; j < m_columns; ++j)
-        m_values[row1][j] += m_values[row2][j] * scalar;
+        setValue(row1, j, getValue(row1, j) + getValue(row2, j) * scalar);
 }
 
 void Matrix::upperTriangularMatrix()
@@ -126,7 +89,7 @@ void Matrix::upperTriangularMatrix()
     for(int j = 0; j < m_columns-1; ++j) {
         int i = j;
         for(; i < m_rows; ++i) {
-            if(m_values[i][j] != 0) {
+            if(getValue(i, j) != 0) {
                 if(i != j)
                     rowSwap(j, i);
                 break;
@@ -137,7 +100,7 @@ void Matrix::upperTriangularMatrix()
             continue;
 
         for(i = j+1; i < m_rows; ++i) {
-            real coeficient = -(m_values[i][j] / m_values[j][j]);
+            real coeficient = -(getValue(i, j) / getValue(j, j));
             if(coeficient != 0)
                 rowAdd(i, j, coeficient);
         }
@@ -151,7 +114,7 @@ real Matrix::getDeterminant()
         return 0;
     }
 
-    Matrix matrix = createCopy();
+    Matrix matrix = *this;
     matrix.upperTriangularMatrix();
 
     int determinant = 1;
@@ -168,7 +131,7 @@ Matrix Matrix::getInverse()
         return Matrix();
     }
 
-    Matrix matrix = createCopy();
+    Matrix matrix = *this;
     Matrix inverse = Matrix::createIdentity(m_rows);
 
     for(int j = 0; j < matrix.getColumns()-1; ++j) {

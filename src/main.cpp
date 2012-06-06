@@ -15,7 +15,8 @@ int main()
     matrix(3,2) = 3;
     matrix(3,3) = 2;
 
-    std::cout << matrix.getInverse() << matrix.getInverse() * matrix << std::endl;
+    std::cout << matrix << std::endl;
+    std::cout << matrix.getInverse() << std::endl << matrix.getInverse() * matrix << std::endl;
 
     return 0;
 }
